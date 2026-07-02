@@ -1,0 +1,47 @@
+package com.ems.employee.dto;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import com.ems.employee.enums.Employment_Status;
+import com.ems.employee.enums.Employment_Type;
+
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class EmployeeRequestDto {
+	
+	private Long employee_id;
+	private String employee_code;
+	private String first_name;
+	private String last_name;
+	private Character gender;
+	private LocalDate date_of_birth;
+	private String email;
+	private String phone_number;
+	private LocalDate joining_date;
+	private Employment_Type employment_type;
+	private String designation;
+	private Long department_id;
+	private Long manager_id;
+	private Employment_Status status;
+	private String profile_picture;
+	private LocalDateTime created_at;
+	private LocalDateTime updated_at;
+
+}

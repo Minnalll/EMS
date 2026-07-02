@@ -1,0 +1,5 @@
+package com.ems.employee.service;
+
+public interface IEmployeeService {
+
+}

@@ -1,0 +1,49 @@
+package com.ems.employee.service;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+
+import com.ems.employee.exception.ResourceNotFoundException;
+import com.ems.employee.model.Employee;
+import com.ems.employee.repo.EmployeeRepo;
+
+@Service
+public class EmployeeService implements IEmployeeService{
+	
+
+	@Autowired
+	private EmployeeRepo repo;
+	
+	@Override
+	public Employee createEmployee (Employee empl) {
+		Employee save = repo.save(empl);		
+		return getEmployees(save.getEmployee_id());		
+	}
+	
+	@Override
+	public List<Employee> getEmployees(){
+		return repo.findAll();
+	}
+
+	@Override
+	public Employee getEmployees(Long eid) {		
+		return repo.findById(eid).orElseThrow(()->new ResourceNotFoundException("Unable to find employee with ID : " + eid));
+	}
+
+	@Override
+	public Employee updateEmployee(Long eid, Employee empl) {
+		Employee oldEmpl = getEmployees(eid);
+		
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<Employee> deleteEmployee(Long eid) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+}

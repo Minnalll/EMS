@@ -1,0 +1,5 @@
+package com.ems.employee.exception;
+
+public class GlobalExceptionHandler {
+
+}

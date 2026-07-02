@@ -1,0 +1,51 @@
+package com.ems.employee.dto;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import com.ems.employee.enums.Employment_Status;
+import com.ems.employee.enums.Employment_Type;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Data
+@Builder
+public class EmployeeRequestDto {
+	
+	@NotBlank(message = "Employee code is required")
+	private String employee_code;
+	@NotBlank(message = "First Name is required")
+	private String first_name;
+	@NotBlank(message = "Last Name is required")
+	private String last_name;
+	@NotBlank(message = "Gender is required")
+	@Pattern(regexp = "^[MmFfOo]$", message = "Gender must be M, F, O, m, f or o")
+	private String gender;
+	@Past
+	private LocalDate date_of_birth;
+	@NotBlank(message = "Email is required")
+	@Email(message = "Invalid email format")
+	private String email;
+	@NotBlank(message = "Phone Number is required")
+	private String phone_number;
+	private LocalDate joining_date;
+	@NotNull(message = "Employment type is required")
+	private Employment_Type employment_type;
+	private String designation;
+	private Long departmentId;
+	private Long managerId;
+	@NotNull(message = "Employment status is required")
+	private Employment_Status status;
+	private String profile_picture;
+
+}

@@ -1,0 +1,80 @@
+package com.ems.employee.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+
+import com.ems.employee.dto.EmployeeRequestDto;
+import com.ems.employee.exception.ResourceNotFoundException;
+import com.ems.employee.model.Employee;
+import com.ems.employee.repo.EmployeeRepo;
+import com.ems.employee.utils.EmployeeMapper;
+
+@Service
+public class EmployeeService implements IEmployeeService{
+	
+
+	@Autowired
+	private EmployeeRepo repo;
+	
+    private final EmployeeMapper mapper;
+
+    @Autowired
+    public EmployeeService(EmployeeMapper mapper) {
+        this.mapper = mapper;
+    }
+	
+	@Override
+	public Employee createEmployee (EmployeeRequestDto emplReq) {
+		Employee empl = mapper.toEntity(emplReq);
+		empl.setCreated_at(LocalDateTime.now());
+		empl.setUpdated_at(LocalDateTime.now());
+		Employee save = repo.save(empl);		
+		return getEmployees(save.getEmployeeId());		
+	}
+	
+	@Override
+	public List<Employee> getEmployees(){
+		return repo.findAll();
+	}
+
+	@Override
+	public Employee getEmployees(Long eid) {		
+		return repo.findById(eid).orElseThrow(()->new ResourceNotFoundException("Unable to find employee with ID : " + eid));
+	}
+
+	@Override
+	public Employee updateEmployee(Long eid, Employee empl) {
+		Employee oldEmpl = getEmployees(eid);
+		
+		oldEmpl.setEmployee_code(empl.getEmployee_code() != null ? empl.getEmployee_code() : oldEmpl.getEmployee_code());
+		oldEmpl.setFirst_name(empl.getFirst_name() != null ? empl.getFirst_name() : oldEmpl.getFirst_name());
+		oldEmpl.setLast_name(empl.getLast_name() != null ? empl.getLast_name() : oldEmpl.getLast_name());
+		oldEmpl.setGender(empl.getGender() != null ? empl.getGender() : oldEmpl.getGender()); 
+		oldEmpl.setDate_of_birth(empl.getDate_of_birth() != null ? empl.getDate_of_birth() : oldEmpl.getDate_of_birth());
+		oldEmpl.setEmail(empl.getEmail() != null ? empl.getEmail() : oldEmpl.getEmail());
+		oldEmpl.setPhone_number(empl.getPhone_number() != null ? empl.getPhone_number() : oldEmpl.getPhone_number());
+		oldEmpl.setJoining_date(empl.getJoining_date() != null ? empl.getJoining_date() : oldEmpl.getJoining_date());
+		oldEmpl.setEmployment_type(empl.getEmployment_type() != null ? empl.getEmployment_type() : oldEmpl.getEmployment_type());
+		oldEmpl.setDesignation(empl.getDesignation() != null ? empl.getDesignation() : oldEmpl.getDesignation());
+		oldEmpl.setDepartmentId(empl.getDepartmentId() != null ? empl.getDepartmentId() : oldEmpl.getDepartmentId());
+		oldEmpl.setManagerId(empl.getManagerId() != null ? empl.getManagerId() : oldEmpl.getManagerId());
+		oldEmpl.setStatus(empl.getStatus() != null ? empl.getStatus() : oldEmpl.getStatus());
+		oldEmpl.setProfile_picture(empl.getProfile_picture() != null ? empl.getProfile_picture() : oldEmpl.getProfile_picture());
+		oldEmpl.setUpdated_at(LocalDateTime.now());
+		
+		return getEmployees(eid);
+	}
+
+	@Override
+	public void deleteEmployee(Long id) {
+	    Employee employee = repo.findById(id)
+	            .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+	    repo.delete(employee);
+	}
+
+}

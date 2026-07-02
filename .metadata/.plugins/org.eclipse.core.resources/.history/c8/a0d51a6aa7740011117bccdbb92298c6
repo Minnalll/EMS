@@ -1,0 +1,5 @@
+package com.ems.employee.model;
+
+public class Employee {
+
+}

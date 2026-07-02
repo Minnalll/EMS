@@ -1,0 +1,5 @@
+package com.ems.employee.utils;
+
+public interface EmployeeMapper {
+
+}

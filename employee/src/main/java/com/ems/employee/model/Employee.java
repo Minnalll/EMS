@@ -1,0 +1,57 @@
+package com.ems.employee.model;
+
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import com.ems.employee.enums.Employment_Status;
+import com.ems.employee.enums.Employment_Type;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@ToString
+@Entity
+@Table(name = "Employee")
+public class Employee {
+	@Id
+	@Column(name = "employee_id")
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long employeeId;
+	private String employee_code;
+	private String first_name;
+	private String last_name;
+	private Character gender;
+	private LocalDate date_of_birth;
+	private String email;
+	private String phone_number;
+	private LocalDate joining_date;
+	@Enumerated(EnumType.STRING)
+	private Employment_Type employment_type;
+	private String designation;
+	@Column(name = "department_id")
+	private Long departmentId;
+	@Column(name = "manager_id")
+	private Long managerId;
+	@Enumerated(EnumType.STRING)
+	private Employment_Status status;
+	private String profile_picture;
+	private LocalDateTime created_at;
+	private LocalDateTime updated_at;
+
+}

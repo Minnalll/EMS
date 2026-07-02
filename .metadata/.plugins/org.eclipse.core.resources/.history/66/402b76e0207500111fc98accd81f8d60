@@ -1,0 +1,11 @@
+package com.ems.employee.repo;
+
+import java.math.BigInteger;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.ems.employee.model.Employee;
+
+public interface EmployeeRepo extends JpaRepository<Employee, BigInteger> {
+
+}

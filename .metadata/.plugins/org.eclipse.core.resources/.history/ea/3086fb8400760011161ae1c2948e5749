@@ -1,0 +1,1045 @@
+
+
+
+
+Errors
+[2m2026-07-02T14:37:02.825+05:30[0;39m [33m WARN[0;39m [35m5988[0;39m [2m--- [employee] [nio-8080-exec-1] [0;39m[36m.m.m.a.ExceptionHandlerExceptionResolver[0;39m [2m:[0;39m Resolved [org.modelmapper.ConfigurationException: ModelMapper configuration errors:<EOL><EOL><EOL><EOL>1) The destination property com.ems.employee.model.Employee.setEmployee_id() matches multiple source property hierarchies:<EOL><EOL>?com.ems.employee.dto.EmployeeRequestDto.getDepartment_id()<EOL>?com.ems.employee.dto.EmployeeRequestDto.getManager_id()<EOL><EOL><EOL><EOL>1 error]
+
+The error is coming from ModelMapper, not from Spring Boot or JPA.
+
+Why this happens
+ModelMapper is trying to map your EmployeeRequestDto to your Employee entity.
+
+The exception says:
+
+Employee.setEmployee_id()
+
+matches multiple source property hierarchies
+
+EmployeeRequestDto.getDepartment_id()
+EmployeeRequestDto.getManager_id()
+This means ModelMapper is confused because of your field names.
+
+It is trying to map
+
+employee_id
+from
+
+department_id
+manager_id
+because they all end with _id.
+
+Example
+Suppose your DTO is
+
+public class EmployeeRequestDto {
+
+    private Long department_id;
+    private Long manager_id;
+}
+and your entity is
+
+@Entity
+public class Employee {
+
+    private Long employee_id;
+
+    @ManyToOne
+    private Department department;
+
+    @ManyToOne
+    private Employee manager;
+}
+ModelMapper tokenizes the names like
+
+employee_id  -> employee + id
+department_id -> department + id
+manager_id -> manager + id
+Since all have an id, it cannot determine which one should populate employee_id.
+
+Solution 1 (Recommended)
+Do not use ModelMapper for entities having relationships.
+
+Instead map manually.
+
+Employee employee = new Employee();
+
+employee.setEmployeeCode(dto.getEmployee_code());
+employee.setFirstName(dto.getFirst_name());
+employee.setLastName(dto.getLast_name());
+Then fetch the related entities
+
+Department department = departmentRepository.findById(dto.getDepartment_id())
+        .orElseThrow(() -> new RuntimeException("Department not found"));
+
+employee.setDepartment(department);
+
+Employee manager = employeeRepository.findById(dto.getManager_id())
+        .orElseThrow(() -> new RuntimeException("Manager not found"));
+
+employee.setManager(manager);
+This is the approach followed in most Spring Boot projects.
+
+Solution 2
+Tell ModelMapper to ignore employee_id.
+
+modelMapper.typeMap(EmployeeRequestDto.class, Employee.class)
+        .addMappings(mapper -> mapper.skip(Employee::setEmployee_id));
+Solution 3
+If your DTO contains
+
+private Long employee_id;
+private Long department_id;
+private Long manager_id;
+then explicitly map
+
+TypeMap<EmployeeRequestDto, Employee> typeMap =
+        modelMapper.createTypeMap(EmployeeRequestDto.class, Employee.class);
+
+typeMap.addMappings(mapper -> {
+    mapper.map(EmployeeRequestDto::getEmployee_id,
+               Employee::setEmployee_id);
+
+    mapper.skip(Employee::setDepartment);
+    mapper.skip(Employee::setManager);
+});
+Then set department and manager manually.
+
+Solution 4 (Better DTO naming)
+Instead of
+
+department_id
+manager_id
+employee_id
+use
+
+private Long departmentId;
+private Long managerId;
+private Long employeeId;
+ModelMapper works much better with camelCase than snake_case.
+
+I suspect another issue
+Could you share these classes?
+
+Employee entity
+
+EmployeeRequestDto
+
+Your ModelMapper configuration (if any)
+
+The service method where you're calling
+
+modelMapper.map(...)
+The exact class definitions will help identify the precise cause and the cleanest fix.
+
+
+Description:
+
+Parameter 0 of constructor in com.ems.employee.service.EmployeeService required a bean of type 'com.ems.employee.utils.EmployeeMapper' that could not be found.
+
+The injection point has the following annotations:
+	- @org.springframework.beans.factory.annotation.Autowired(required=true)
+
+
+Action:
+
+Consider defining a bean of type 'com.ems.employee.utils.EmployeeMapper' in your configuration.
+
+This error is a Spring Dependency Injection issue. Spring is unable to create an instance of EmployeeService because it cannot find a bean of type EmployeeMapper.
+
+Error
+Parameter 0 of constructor in EmployeeService required a bean of type
+'com.ems.employee.utils.EmployeeMapper' that could not be found.
+This means your service probably looks like:
+
+@Service
+public class EmployeeService {
+
+    private final EmployeeMapper employeeMapper;
+
+    @Autowired
+    public EmployeeService(EmployeeMapper employeeMapper) {
+        this.employeeMapper = employeeMapper;
+    }
+}
+But Spring doesn't know how to create EmployeeMapper.
+
+Solution 1 (Most Common)
+If EmployeeMapper is your own class, annotate it with @Component.
+
+@Component
+public class EmployeeMapper {
+
+    // mapping methods
+}
+Spring Boot automatically scans it and creates a bean.
+
+Solution 2 (If it is an interface)
+If your mapper is an interface like
+
+public interface EmployeeMapper {
+    Employee toEntity(EmployeeRequestDto dto);
+}
+Spring cannot instantiate an interface.
+
+You need an implementation.
+
+@Component
+public class EmployeeMapperImpl implements EmployeeMapper {
+
+    @Override
+    public Employee toEntity(EmployeeRequestDto dto) {
+        // implementation
+    }
+}
+Solution 3 (If you're using MapStruct)
+If you're using MapStruct, your mapper should be declared like this:
+
+@Mapper(componentModel = "spring")
+public interface EmployeeMapper {
+
+    Employee toEntity(EmployeeRequestDto dto);
+
+    EmployeeResponseDto toDto(Employee employee);
+}
+Then ensure you have the MapStruct dependencies and annotation processor configured in your Maven build. Spring will then discover the generated implementation automatically.
+
+Solution 4 (If you forgot @Bean)
+If you create the mapper manually, register it as a bean:
+
+@Configuration
+public class MapperConfig {
+
+    @Bean
+    public EmployeeMapper employeeMapper() {
+        return new EmployeeMapper();
+    }
+}
+Things to verify
+Is EmployeeMapper a class or an interface?
+
+Does it have one of these annotations?
+
+@Component
+
+@Service
+
+@Mapper(componentModel = "spring") (MapStruct)
+
+Is it located under a package scanned by Spring? For example:
+
+com.ems.employee
+    ├── EmployeeApplication.java
+    ├── service
+    ├── utils
+    └── model
+If EmployeeApplication is in com.ems.employee, then com.ems.employee.utils will be scanned automatically.
+
+Please share the code for:
+EmployeeMapper.java
+
+EmployeeService.java
+
+EmployeeApplication.java
+
+Your pom.xml (if you're using MapStruct)
+
+With those, I can identify the exact cause and tell you the precise fix.
+
+
+Description:
+
+Parameter 0 of constructor in com.ems.employee.service.EmployeeService required a bean of type 'com.ems.employee.utils.EmployeeMapper' that could not be found.
+
+The injection point has the following annotations:
+	- @org.springframework.beans.factory.annotation.Autowired(required=true)
+
+
+Action:
+
+Consider defining a bean of type 'com.ems.employee.utils.EmployeeMapper' in your configuration.
+
+The error means Spring cannot create an object of EmployeeMapper, so it cannot inject it into EmployeeService.
+
+The exact solution depends on what EmployeeMapper is.
+
+Case 1: EmployeeMapper is a normal Java class (Most likely)
+If your class looks like this:
+
+public class EmployeeMapper {
+
+    public Employee toEntity(EmployeeRequestDto dto) {
+        ...
+    }
+}
+Then Spring doesn't know about it. Add @Component:
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class EmployeeMapper {
+
+    public Employee toEntity(EmployeeRequestDto dto) {
+        ...
+    }
+}
+Case 2: EmployeeMapper is a MapStruct interface
+If it looks like this:
+
+@Mapper
+public interface EmployeeMapper {
+    Employee toEntity(EmployeeRequestDto dto);
+}
+Change it to:
+
+@Mapper(componentModel = "spring")
+public interface EmployeeMapper {
+    Employee toEntity(EmployeeRequestDto dto);
+}
+Also ensure your Maven includes the MapStruct annotation processor.
+
+Case 3: EmployeeMapper is an interface without an implementation
+If you have
+
+public interface EmployeeMapper {
+    Employee toEntity(EmployeeRequestDto dto);
+}
+Spring cannot instantiate an interface.
+
+You need:
+
+@Component
+public class EmployeeMapperImpl implements EmployeeMapper {
+
+    @Override
+    public Employee toEntity(EmployeeRequestDto dto) {
+        ...
+    }
+}
+Case 4: Package scanning issue
+Your project should look something like:
+
+com.ems.employee
+│
+├── EmployeeApplication.java
+├── service
+├── controller
+├── repository
+├── utils
+│     └── EmployeeMapper.java
+EmployeeApplication should be in the root package:
+
+@SpringBootApplication
+public class EmployeeApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EmployeeApplication.class, args);
+    }
+}
+If EmployeeMapper is outside the scanned packages, Spring won't find it.
+
+To identify the exact problem
+Please paste these files:
+
+EmployeeMapper.java
+
+EmployeeService.java
+
+EmployeeApplication.java
+
+From the error alone, I would say there's a 95% chance that either:
+
+EmployeeMapper is missing @Component, or
+
+It's a MapStruct interface missing componentModel = "spring".
+
+
+package com.ems.employee.utils;
+
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.factory.Mappers;
+import org.springframework.stereotype.Component;
+
+import com.ems.employee.dto.EmployeeRequestDto;
+import com.ems.employee.dto.EmployeeResponseDto;
+import com.ems.employee.model.Employee;
+
+@Mapper(componentModel = "spring") // integrates with Spring
+public interface EmployeeMapper {
+    EmployeeMapper INSTANCE = Mappers.getMapper(EmployeeMapper.class);
+
+    // Entity → DTO
+    EmployeeRequestDto toDTO(Employee employee);
+
+    // DTO → Entity
+    Employee toEntity(EmployeeRequestDto dto);
+}
+package com.ems.employee.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.ems.employee.dto.EmployeeRequestDto;
+import com.ems.employee.exception.ResourceNotFoundException;
+import com.ems.employee.model.Employee;
+import com.ems.employee.repo.EmployeeRepo;
+import com.ems.employee.utils.EmployeeMapper;
+
+@Service
+public class EmployeeService implements IEmployeeService{
+	
+
+	@Autowired
+	private EmployeeRepo repo;
+	
+    private final EmployeeMapper mapper;
+
+    @Autowired
+    public EmployeeService(EmployeeMapper mapper) {
+        this.mapper = mapper;
+    }
+	
+	@Override
+	public Employee createEmployee (EmployeeRequestDto emplReq) {
+		Employee empl = mapper.toEntity(emplReq);
+		empl.setCreated_at(LocalDateTime.now());
+		empl.setUpdated_at(LocalDateTime.now());
+		Employee save = repo.save(empl);		
+		return getEmployees(save.getEmployeeId());		
+	}
+	
+	@Override
+	public List<Employee> getEmployees(){
+		return repo.findAll();
+	}
+
+	@Override
+	public Employee getEmployees(Long eid) {		
+		return repo.findById(eid).orElseThrow(()->new ResourceNotFoundException("Unable to find employee with ID : " + eid));
+	}
+
+	@Override
+	public Employee updateEmployee(Long eid, Employee empl) {
+		Employee oldEmpl = getEmployees(eid);
+		
+		oldEmpl.setEmployee_code(empl.getEmployee_code() != null ? empl.getEmployee_code() : oldEmpl.getEmployee_code());
+		oldEmpl.setFirst_name(empl.getFirst_name() != null ? empl.getFirst_name() : oldEmpl.getFirst_name());
+		oldEmpl.setLast_name(empl.getLast_name() != null ? empl.getLast_name() : oldEmpl.getLast_name());
+		oldEmpl.setGender(empl.getGender() != null ? empl.getGender() : oldEmpl.getGender()); 
+		oldEmpl.setDate_of_birth(empl.getDate_of_birth() != null ? empl.getDate_of_birth() : oldEmpl.getDate_of_birth());
+		oldEmpl.setEmail(empl.getEmail() != null ? empl.getEmail() : oldEmpl.getEmail());
+		oldEmpl.setPhone_number(empl.getPhone_number() != null ? empl.getPhone_number() : oldEmpl.getPhone_number());
+		oldEmpl.setJoining_date(empl.getJoining_date() != null ? empl.getJoining_date() : oldEmpl.getJoining_date());
+		oldEmpl.setEmployment_type(empl.getEmployment_type() != null ? empl.getEmployment_type() : oldEmpl.getEmployment_type());
+		oldEmpl.setDesignation(empl.getDesignation() != null ? empl.getDesignation() : oldEmpl.getDesignation());
+		oldEmpl.setDepartmentId(empl.getDepartmentId() != null ? empl.getDepartmentId() : oldEmpl.getDepartmentId());
+		oldEmpl.setManagerId(empl.getManagerId() != null ? empl.getManagerId() : oldEmpl.getManagerId());
+		oldEmpl.setStatus(empl.getStatus() != null ? empl.getStatus() : oldEmpl.getStatus());
+		oldEmpl.setProfile_picture(empl.getProfile_picture() != null ? empl.getProfile_picture() : oldEmpl.getProfile_picture());
+		oldEmpl.setUpdated_at(LocalDateTime.now());
+		
+		return getEmployees(eid);
+	}
+
+	@Override
+	public void deleteEmployee(Long id) {
+	    Employee employee = repo.findById(id)
+	            .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+	    repo.delete(employee);
+	}
+
+}
+
+Thanks for sharing the code. Your EmployeeMapper definition is correct:
+
+@Mapper(componentModel = "spring")
+public interface EmployeeMapper {
+    EmployeeRequestDto toDTO(Employee employee);
+    Employee toEntity(EmployeeRequestDto dto);
+}
+If Spring says:
+
+No qualifying bean of type 'EmployeeMapper'
+then the problem is not in this interface itself. It means MapStruct did not generate the implementation class (EmployeeMapperImpl).
+
+Step 1: Check whether EmployeeMapperImpl exists
+After building the project, look for:
+
+target/generated-sources/annotations/com/ems/employee/utils/EmployeeMapperImpl.java
+or in IntelliJ:
+
+target
+ └── generated-sources
+      └── annotations
+           └── com.ems.employee.utils.EmployeeMapperImpl
+If it does not exist
+Your MapStruct annotation processor is not running.
+
+Step 2: Check your pom.xml
+You should have something similar to:
+
+<properties>
+    <java.version>21</java.version>
+    <org.mapstruct.version>1.6.3</org.mapstruct.version>
+</properties>
+
+<dependencies>
+    <dependency>
+        <groupId>org.mapstruct</groupId>
+        <artifactId>mapstruct</artifactId>
+        <version>${org.mapstruct.version}</version>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.13.0</version>
+            <configuration>
+                <annotationProcessorPaths>
+                    <path>
+                        <groupId>org.mapstruct</groupId>
+                        <artifactId>mapstruct-processor</artifactId>
+                        <version>${org.mapstruct.version}</version>
+                    </path>
+                </annotationProcessorPaths>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+Without the mapstruct-processor, no implementation will be generated.
+
+Step 3: Enable Annotation Processing in IntelliJ
+Go to:
+
+Settings
+    → Build, Execution, Deployment
+        → Compiler
+            → Annotation Processors
+Ensure:
+
+✔ Enable annotation processing
+is checked.
+
+Step 4: Remove this line
+Since you're using Spring injection, remove:
+
+EmployeeMapper INSTANCE = Mappers.getMapper(EmployeeMapper.class);
+Your mapper should simply be:
+
+@Mapper(componentModel = "spring")
+public interface EmployeeMapper {
+
+    EmployeeRequestDto toDTO(Employee employee);
+
+    Employee toEntity(EmployeeRequestDto dto);
+}
+You don't need Mappers.getMapper(...) when using componentModel = "spring".
+
+Step 5: Clean and rebuild
+Run:
+
+mvn clean compile
+or in IntelliJ:
+
+Build → Rebuild Project
+If EmployeeMapperImpl is generated, Spring will automatically register it as a bean.
+
+I need one more thing
+Please share your pom.xml. The missing bean error is very often caused by an incorrect or missing MapStruct configuration there, and I can verify it quickly.
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.1.0</version>
+		<relativePath /> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.ems</groupId>
+	<artifactId>employee</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name />
+	<description />
+	<url />
+	<licenses>
+		<license />
+	</licenses>
+	<developers>
+		<developer />
+	</developers>
+	<scm>
+		<connection />
+		<developerConnection />
+		<tag />
+		<url />
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>1.5.5.Final</version>
+		</dependency>
+
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>default-compile</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<annotationProcessorPaths>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok</artifactId>
+								</path>
+							</annotationProcessorPaths>
+						</configuration>
+					</execution>
+					<execution>
+						<id>default-testCompile</id>
+						<phase>test-compile</phase>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+						<configuration>
+							<annotationProcessorPaths>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok</artifactId>
+								</path>
+							</annotationProcessorPaths>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.mapstruct</groupId>
+							<artifactId>mapstruct-processor</artifactId>
+							<version>${org.mapstruct.version}</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+
+I can see the problem. There are multiple issues in your pom.xml that prevent MapStruct from generating EmployeeMapperImpl.
+
+1. You never defined org.mapstruct.version
+You have:
+
+<version>${org.mapstruct.version}</version>
+But your <properties> contains only:
+
+<properties>
+    <java.version>17</java.version>
+</properties>
+So Maven doesn't know what ${org.mapstruct.version} is.
+
+Either define it:
+
+<properties>
+    <java.version>17</java.version>
+    <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
+</properties>
+or simply hardcode the version.
+
+2. You have two maven-compiler-plugin entries
+Currently you have:
+
+<plugin>
+    maven-compiler-plugin
+    ...
+</plugin>
+
+<plugin>
+    maven-compiler-plugin
+    ...
+</plugin>
+This is incorrect. Use only one maven-compiler-plugin.
+
+3. The first compiler plugin only registers Lombok
+It currently has:
+
+<annotationProcessorPaths>
+    <path>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+    </path>
+</annotationProcessorPaths>
+It should also include MapStruct.
+
+4. Spring Boot version
+I also noticed:
+
+<version>4.1.0</version>
+At the time of writing, Spring Boot 4.1.0 is not a standard released version. If this is intentional and available in your environment, that's fine. Otherwise, verify the version you're using. (This is separate from the MapStruct issue.)
+
+Replace both compiler plugins with this single one
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.13.0</version>
+    <configuration>
+        <source>17</source>
+        <target>17</target>
+
+        <annotationProcessorPaths>
+
+            <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>1.18.38</version>
+            </path>
+
+            <path>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>1.5.5.Final</version>
+            </path>
+
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+Also change your properties
+<properties>
+    <java.version>17</java.version>
+    <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
+</properties>
+Remove this line from EmployeeMapper
+EmployeeMapper INSTANCE = Mappers.getMapper(EmployeeMapper.class);
+and remove its import:
+
+import org.mapstruct.factory.Mappers;
+Your mapper should be:
+
+@Mapper(componentModel = "spring")
+public interface EmployeeMapper {
+
+    EmployeeRequestDto toDTO(Employee employee);
+
+    Employee toEntity(EmployeeRequestDto dto);
+}
+Then
+Delete the target folder.
+
+Run:
+
+mvn clean compile
+Check whether this file exists:
+
+target/generated-sources/annotations/com/ems/employee/utils/EmployeeMapperImpl.java
+If it exists, Spring will automatically inject EmployeeMapper.
+
+One more question
+Can you also paste your EmployeeApplication.java (the class with @SpringBootApplication)? I want to verify that component scanning includes the com.ems.employee.utils package.
+
+
+correct the pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.1.0</version>
+		<relativePath /> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.ems</groupId>
+	<artifactId>employee</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name />
+	<description />
+	<url />
+	<licenses>
+		<license />
+	</licenses>
+	<developers>
+		<developer />
+	</developers>
+	<scm>
+		<connection />
+		<developerConnection />
+		<tag />
+		<url />
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>1.5.5.Final</version>
+		</dependency>
+
+	</dependencies>
+
+	<build>
+		<plugins>
+
+		</plugins>
+	</build>
+
+</project>
+
+Your pom.xml has a few issues:
+
+Spring Boot 4.1.0 is not a standard released version. If you intended to use Spring Boot 3.x, use 3.5.x (or the version required by your project).
+
+You're missing the MapStruct annotation processor.
+
+You're missing the Maven Compiler Plugin configuration.
+
+The test dependencies should be spring-boot-starter-test instead of spring-boot-starter-data-jpa-test and spring-boot-starter-webmvc-test.
+
+Here's a corrected pom.xml for Java 17 + Spring Boot + MapStruct + Lombok + MySQL:
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.3</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.ems</groupId>
+    <artifactId>employee</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>employee</name>
+    <description>Employee Management System</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- Spring Boot -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- MySQL -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- MapStruct -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${org.mapstruct.version}</version>
+        </dependency>
+
+        <!-- DevTools -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+
+                    <annotationProcessorPaths>
+
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${org.mapstruct.version}</version>
+                        </path>
+
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
+
