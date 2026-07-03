@@ -1,5 +1,6 @@
 package com.ems.employee.service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -9,14 +10,16 @@ import com.ems.employee.model.Employee;
 
 public interface IEmployeeService {
 	
-	public Employee createEmployee (EmployeeRequestDto emplReq);
+	Employee createEmployee (EmployeeRequestDto emplReq);
 	
-	public List<Employee> getEmployees();
+	List<Employee> getEmployees();
 	
-	public Employee getEmployees(Long eid);
+	Employee getEmployees(Long eid);
 	
-	public Employee updateEmployee (Long eid, Employee empl);
+	Employee updateEmployee (Long eid, Employee empl);
 	
-	public void deleteEmployee(Long id);
+	void deleteEmployee(Long id);
+	
+	List<Employee> searchEmployees (String firstName, String lastName, LocalDate joiningStartDate, LocalDate joiningEndDate);
 
 }
