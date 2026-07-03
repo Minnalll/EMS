@@ -1,8 +1,10 @@
 package com.ems.employee.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.hibernate.grammars.hql.HqlParser.IsEmptyPredicateContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +14,18 @@ import com.ems.employee.model.Employee;
 import com.ems.employee.repo.EmployeeRepo;
 import com.ems.employee.utils.EmployeeMapper;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import jakarta.validation.Valid;
 
 @Service
 public class EmployeeService implements IEmployeeService{
 	
+	@Autowired
+	private EntityManager entityManager;
 
 	@Autowired
 	private EmployeeRepo repo;
@@ -75,6 +84,33 @@ public class EmployeeService implements IEmployeeService{
 	    Employee employee = repo.findById(id)
 	            .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
 	    repo.delete(employee);
+	}
+
+	@Override
+	public List<Employee> searchEmployees(String firstName, String lastName, LocalDate joiningStartDate,
+			LocalDate joiningEndDate) {
+		CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+		CriteriaQuery<Employee> query = cb.createQuery(Employee.class);
+		Root<Employee> empl = query.from(Employee.class);
+		
+		Predicate predicate = cb.conjunction();
+		
+		if(firstName != null && !firstName.isEmpty()) {
+			predicate  = cb.and(predicate, cb.like(empl.get("firstName"), "%" + firstName + "%"));
+		}
+		if(lastName != null && !lastName.isEmpty()) {
+			predicate  = cb.and(predicate, cb.like(empl.get("lastName"), "%" + lastName + "%"));
+		}
+		if (joiningStartDate != null) {
+			predicate = cb.and(predicate, cb.greaterThanOrEqualTo(empl.get("joining_date"), joiningStartDate));
+		}
+		if (joiningEndDate != null) {
+			predicate = cb.and(predicate, cb.lessThanOrEqualTo(empl.get("joining_date"), joiningEndDate));
+		}
+		
+		query.where(predicate);
+		
+		return entityManager.createQuery(query).getResultList();
 	}
 
 }
